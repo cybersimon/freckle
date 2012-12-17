@@ -1,0 +1,9 @@
+# requirements for freckle package
+#
+# To use:
+# pip install -r requirements.txt
+#
+
+httplib2==0.7.7
+iso8601==0.1.4
+pyyaml==3.10
