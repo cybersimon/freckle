@@ -36,9 +36,22 @@ class Freckle(object):
 
     def request(self, url, method="GET", body=""):
         """Make a request to Freckle and return Python objects"""
-        resp, content = self.http.request(url, method, body, 
-                                          headers=self.headers)
+        resp, content = self.http.request(url, method, body,
+            headers=self.headers)
         return self.parse_response(content)
+
+    def paginated_request(self, url, method="GET", body="", page=1):
+        # This was added to help with paginated responses in freckle's API
+        url = "%s&page=%s&per_page=100" % (url, page)
+        """Make a request to Freckle and return Python objects"""
+        resp, content = self.http.request(url, method, body,
+            headers=self.headers)
+        # if resp['link'] contains rel="next" at this point,
+        # then there are more entries after this page.
+        more_pages = False
+        if resp.has_key('link') and "next" in resp['link']:
+            more_pages = True
+        return self.parse_response(content), more_pages
 
     def get_entries(self, **kwargs):
         """
@@ -71,7 +84,17 @@ class Freckle(object):
                 val = "false"
             search_args['search[billable]'] = val
         query = urllib.urlencode(search_args)
-        return self.request("%s/entries.xml?%s" % (self.endpoint, query))
+
+        # entries may be paginated, we need to make sure we get all of them
+        more_pages = True
+        page = 1
+        entries = []
+        while more_pages:
+            entry_data, more_pages = self.paginated_request("%s/entries.xml?%s" % (self.endpoint, query), page=page)
+            entries.extend(entry_data)
+            page += 1
+        return entries
+    #        return self.request("%s/entries.xml?%s" % (self.endpoint, query))
 
     def get_users(self):
         """Get users from Freckle"""
@@ -80,7 +103,7 @@ class Freckle(object):
     def get_projects(self):
         """Get projects from Freckle"""
         return self.request("%s/projects.xml" % self.endpoint)
-    
+
     def parse_response(self, xml_content):
         """Parse XML response into Python"""
         content = []
@@ -105,7 +128,7 @@ class Freckle(object):
             return True
         else:
             return False
-        
+
     def date_as_python(self, val):
         """Convert text to date"""
         return datetime.date(*[int(x) for x in val.split("-")])
