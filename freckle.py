@@ -113,7 +113,10 @@ class Freckle(object):
             for item in elem.getchildren():
                 if item.get("type") and item.text:
                     parser = "%s_as_python" % item.get("type")
-                    as_python = getattr(self, parser)(item.text)
+                    try:
+                        as_python = getattr(self, parser)(item.text)
+                    except yaml.scanner.ScannerError:
+                        pass
                 elif item.get("type"):
                     as_python = None
                 else:
