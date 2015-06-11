@@ -1,6 +1,7 @@
 """Python client for Freckle"""
 from cStringIO import StringIO
 import datetime
+import json
 import urllib
 
 import httplib2
@@ -34,26 +35,31 @@ class Freckle(object):
         self.headers = {"X-FreckleToken":token}
         self.http = httplib2.Http()
 
-    def request(self, url, method="GET", body=""):
+    def request(self, url, method="GET", body="", request_type="xml"):
         """Make a request to Freckle and return Python objects"""
         resp, content = self.http.request(url, method, body,
             headers=self.headers)
-        return self.parse_response(content)
+        if request_type == "xml":
+            return self.parse_response(content)
+        return self.parse_json_response(content)
 
-    def paginated_request(self, url, method="GET", body="", page=1):
+    def paginated_request(self, url, method="GET", body="", page=1,
+                          request_type="xml"):
         # This was added to help with paginated responses in freckle's API
         url = "%s&page=%s&per_page=100" % (url, page)
         """Make a request to Freckle and return Python objects"""
-        resp, content = self.http.request(url, method, body,
-            headers=self.headers)
+        resp, content = self.http.request(
+            url, method, body, headers=self.headers)
         # if resp['link'] contains rel="next" at this point,
         # then there are more entries after this page.
         more_pages = False
         if resp.has_key('link') and "next" in resp['link']:
             more_pages = True
-        return self.parse_response(content), more_pages
+        if request_type == "xml":
+            return self.parse_response(content), more_pages
+        return self.parse_json_response(content), more_pages
 
-    def get_entries(self, **kwargs):
+    def get_entries(self, request_type="xml", **kwargs):
         """
         Get time entries from Freckle
 
@@ -90,19 +96,27 @@ class Freckle(object):
         page = 1
         entries = []
         while more_pages:
-            entry_data, more_pages = self.paginated_request("%s/entries.xml?%s" % (self.endpoint, query), page=page)
+            entry_data, more_pages = self.paginated_request(
+                "%s/entries.%s?%s" % (self.endpoint, request_type, query),
+                page=page, request_type=request_type
+            )
             entries.extend(entry_data)
             page += 1
         return entries
-    #        return self.request("%s/entries.xml?%s" % (self.endpoint, query))
 
-    def get_users(self):
+    def get_users(self, request_type="xml"):
         """Get users from Freckle"""
-        return self.request("%s/users.xml" % self.endpoint)
+        return self.request(
+            "%s/users.%s" % (self.endpoint, request_type),
+            request_type=request_type
+        )
 
-    def get_projects(self):
+    def get_projects(self, request_type="xml"):
         """Get projects from Freckle"""
-        return self.request("%s/projects.xml" % self.endpoint)
+        return self.request(
+            "%s/projects.%s" % (self.endpoint, request_type),
+            request_type=request_type
+        )
 
     def parse_response(self, xml_content):
         """Parse XML response into Python"""
@@ -124,6 +138,10 @@ class Freckle(object):
                 as_dict[item.tag] = as_python
             content.append(as_dict)
         return content
+
+    def parse_json_response(self, json_content):
+        """Parse JSON response into Python"""
+        return json.loads(json_content)
 
     def boolean_as_python(self, val):
         """Convert text to boolean"""
